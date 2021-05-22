@@ -1,40 +1,47 @@
 /*
-   OscilloscopeExcel
-
+  Oscilloscope Excel 
   Reads an analog input on pin A0, converts it to voltage, and prints the result to the Serial Monitor in the format shown below ( with ":" as separator).
-  Start:<StartTime>:<voltage>:End:<EndTime>
-  where 
-    <StartTime> is the time we began reading from the voltage at A0 measured in time microsoeconds since arduino the time the Arduino was started
-    <FinishTime> is the time we finished reading from the voltage at A0 measured in time microsoeconds since arduino the time the Arduino was started
+  Start:<StartTime>:<voltage>
+  where
+    <StartTime> is time we began reading from the voltage of A0 measured in microseconds since Arduino was started
     <voltage> is the voltage reading at pin A0 (value between 0 and 5V)
-  Example output: 
-    Start:12528:2.87:End:13804
-*/
-
+  Example output
+    Start:12523:2.87
+*/ 
+#define TotalSamples 400
 int runcount = 0;
-// the setup routine runs once when you press reset:
+unsigned int sampleTime[TotalSamples] = {};
+int sensorValue[TotalSamples]={};
+
+//the setup routine runs once when you press the reset:
 void setup() {
-  // initialize serial communication at 115200 bits per second:
-  Serial.begin(115200);
+  // initialize serial communication at 2000000 bits per second
+  Serial.begin(2000000);
+
+  ADCSRA = (ADCSRA & B11111000) | 4;  //set division factor to 16 instead of the default arduino value of 128
   
 }
 
-// the loop routine runs over and over again forever:
+//the loop routine runs over and over forever:
 void loop() {
-  if ( runcount < 1000 )
+  if (runcount < TotalSamples)
   {
-    Serial.print("Start:");
-    Serial.print(micros());
-    Serial.print(":");
-    // read the input on analog pin A0:
-    int sensorValue = analogRead(A0);
-    // Convert the analog reading (which goes from 0 - 1023) to a voltage (0 - 5V):
-    float voltage = sensorValue * (5.0 / 1023.0);
-  
-  // print out the value you read:
-    Serial.print(voltage);
-    Serial.print(":End:");
-    Serial.println(micros());
+    sampleTime[runcount]=micros();
+    sensorValue[runcount]=analogRead(A0);
+
     runcount++;
   }
+  if (runcount == TotalSamples) {
+    for (int i = 0; i < TotalSamples; i++)
+    {
+      Serial.print("Start:");
+      Serial.print(sampleTime[i]);
+      Serial.print(":");
+      float voltage = sensorValue[i] * (5.0 / 1023.0);
+      Serial.print(voltage);
+      Serial.println(":");
+    }  
+    runcount++;
+  }
+  
 }
