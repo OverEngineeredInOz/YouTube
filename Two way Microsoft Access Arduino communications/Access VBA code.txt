@@ -1,0 +1,31 @@
+'Private Sub submitButton_Click()
+
+    'All the code to validate user input. Prompt user to make sure they want to submit form, etc.
+
+ '   DoCmd.RunSQL "INSERT INTO Table1 (ReceivedText) values (txtCustomerID.Value)"
+
+'End Sub
+
+Sub Macro1()
+'
+' Macro1 Macro
+'
+Open "COM3:9600,N,8,1,X" For Binary Access Read Write As #1   'Opens Com Port with Baud rate and bit settings
+ Cmnd = "This is my text" + Chr(10)     'Message assembled to be sent to device on serial port
+ Put #1, , Cmnd                'Sends assembled message
+  answer = ""                  'clear response string
+  char = Input(1, #1)          'get first character
+  While (char <> Chr(13))      'loop until [CR]
+    If (char > Chr(31)) Then
+      answer = answer + char   'add, if printable char
+    Else
+      ' Do what ever you like
+    End If
+    char = Input(1, #1)        'get the next character
+  Wend
+  Close #1
+ 'Range("C2").Value = answer    'places response in desired cell
+ 
+ DoCmd.RunSQL "INSERT INTO Table1 (ReceivedText) values ('" & answer & "')"
+'
+End Sub
