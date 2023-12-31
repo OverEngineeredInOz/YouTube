@@ -22,7 +22,7 @@
 #define SMTP_HOST "smtp.office365.com"            // The smtp host name e.g. smtp.gmail.com for GMail or smtp.office365.com for Outlook or smtp.mail.yahoo.com 
 #define SMTP_PORT esp_mail_smtp_port_587          // The smtp port  e.g. 25  or esp_mail_smtp_port_25, 465 or esp_mail_smtp_port_465,  587 or esp_mail_smtp_port_587
 #define AUTHOR_EMAIL "FromMe@outlook.com"  // The log in credentials for the email account used to send emails:  user
-#define AUTHOR_PASSWORD "SENDING-EMAIL-PASSWORD"                //                                                                    password
+#define AUTHOR_PASSWORD "SENDING-EMAIL-PASSWORD"                //                                                                      password
 #define SENDER_NAME "ESP Mail"
 #define AUTHOR_DOMAIN "mydomain.net"
 #define RECIPIENT_NAME "John"                   //person we are sending the emails to
@@ -35,6 +35,7 @@ int lowPinHistory[THRESHOLDCONSECUTIVECOUNT];
 int mediumPinHistory[THRESHOLDCONSECUTIVECOUNT];
 int highPinHistory[THRESHOLDCONSECUTIVECOUNT];
 int highestPinHistory[THRESHOLDCONSECUTIVECOUNT];
+
 
 void keepWifiAlive(void * parameters){
   for(;;){
@@ -143,15 +144,16 @@ void sendEmail(char subject[], char htmlMsg[]){
 
 
 void monitorWaterLevel(void * parameters){
-  
+  vTaskDelay(10000 / portTICK_PERIOD_MS);   //Wait 10 seconds before firing up water monitoring so reduce chance of clash with initial wifi connection email.
   int mediumConsecutiveHighCount = 0;       
   int mediumConsecutiveLowCount = 0;
   int highestConsecutiveLowCount=0;
+  int relay1Status = LOW;  //initialized before for loop starts.
   
   digitalWrite(OUT_RELAY2,LOW); 
   
   for(;;){
-    vTaskDelay(100 / portTICK_PERIOD_MS);   //time between taking samples 100 milliseconds 
+    vTaskDelay(200 / portTICK_PERIOD_MS);   //time between taking samples 200 milliseconds 
     int lowPinVal = digitalRead(IN_LOW);
     int mediumPinVal = digitalRead(IN_MEDIUM);
     int highPinVal = digitalRead(IN_HIGH);
@@ -167,21 +169,25 @@ void monitorWaterLevel(void * parameters){
       } else {
         digitalWrite(OUT_RELAY1,HIGH);    //turn on the relay to keep filling the pool
         //Serial.println("Relay High");
-        if (mediumConsecutiveHighCount == THRESHOLDCONSECUTIVECOUNT && WiFi.status() == WL_CONNECTED && mailInProgress < 1 ){
-          mediumConsecutiveHighCount++; 
-          mailInProgress=1;
-          String emailBody = "<p>Started Filling Pool</p><p>The message was sent via ESP device.</p>";
-          emailBody += pinValuesLog();
-
-          //convert string to char array so as that is the datatype accepted by the sendEmail function
-          int str_len = emailBody.length() + 1;   // Length (with one extra character for the null terminator)
-          char char_array[str_len]; // Prepare the character array (the buffer) 
-          emailBody.toCharArray(char_array, str_len);  // Copy it over
-          
-          vTaskDelay(20 / portTICK_PERIOD_MS);  //to avoid watchdog timeouts
-          sendEmail("Started Filling Pool", char_array);
-          mailInProgress=0;
-        }
+        
+        if(relay1Status == LOW) {
+          relay1Status = HIGH;
+          if (mediumConsecutiveHighCount == THRESHOLDCONSECUTIVECOUNT && WiFi.status() == WL_CONNECTED && mailInProgress < 1 ){
+            mediumConsecutiveHighCount++; 
+            mailInProgress=1;
+            String emailBody = "<p>Started Filling Pool</p><p>The message was sent via ESP device.</p>";
+            emailBody += pinValuesLog();
+  
+            //convert string to char array so as that is the datatype accepted by the sendEmail function
+            int str_len = emailBody.length() + 1;   // Length (with one extra character for the null terminator)
+            char char_array[str_len]; // Prepare the character array (the buffer) 
+            emailBody.toCharArray(char_array, str_len);  // Copy it over
+            
+            vTaskDelay(20 / portTICK_PERIOD_MS);  //to avoid watchdog timeouts
+            sendEmail("Started Filling Pool", char_array);
+            mailInProgress=0;
+          }
+        }  //endif relay1status
       }
     }else {
       mediumConsecutiveHighCount = 0;
@@ -189,22 +195,26 @@ void monitorWaterLevel(void * parameters){
         mediumConsecutiveLowCount++;
       } else{
         digitalWrite(OUT_RELAY1,LOW);
-        //Serial.println("Relay Low");
-        if (mediumConsecutiveLowCount == THRESHOLDCONSECUTIVECOUNT && WiFi.status() == WL_CONNECTED && mailInProgress < 1){
-          mediumConsecutiveLowCount++;
-          mailInProgress=1;
-          String emailBody = "<p>Stopped Filling Pool</p><p>The message was sent via ESP device.</p>";
-          emailBody += pinValuesLog();
-
-          //convert string to char array so as that is the datatype accepted by the sendEmail function
-          int str_len = emailBody.length() + 1;   // Length (with one extra character for the null terminator)
-          char char_array[str_len]; // Prepare the character array (the buffer) 
-          emailBody.toCharArray(char_array, str_len);  // Copy it over
+        if (relay1Status == HIGH){
+          relay1Status = LOW;
+          //Serial.println("Relay Low");
+          if (mediumConsecutiveLowCount == THRESHOLDCONSECUTIVECOUNT && WiFi.status() == WL_CONNECTED && mailInProgress < 1){
+            mediumConsecutiveLowCount++;
+            mailInProgress=1;
+            String emailBody = "<p>Stopped Filling Pool</p><p>The message was sent via ESP device.</p>";
+            emailBody += pinValuesLog();
+  
+            //convert string to char array so as that is the datatype accepted by the sendEmail function
+            int str_len = emailBody.length() + 1;   // Length (with one extra character for the null terminator)
+            char char_array[str_len]; // Prepare the character array (the buffer) 
+            emailBody.toCharArray(char_array, str_len);  // Copy it over
+            
+            vTaskDelay(20 / portTICK_PERIOD_MS);  //to avoid watchdog timeouts
+            sendEmail("Stopped Filling Pool", char_array);
+            mailInProgress=0;
+          }
+        }  //endif relaystatus HIGH
           
-          vTaskDelay(20 / portTICK_PERIOD_MS);  //to avoid watchdog timeouts
-          sendEmail("Stopped Filling Pool", char_array);
-          mailInProgress=0;
-        }
       }
     }
     /**************END OF CODE FOR MANAGING THE RELAY FOR FILLING THE POOL**********************************/
@@ -244,11 +254,11 @@ void monitorWaterLevel(void * parameters){
 //  array index THRESHOLDCONSECUTIVECOUNT - 1 is the most recent value
 /////////////////////////////////////////////////////////////////////////////////////////
 void logPinValues(int lowPinVal, int mediumPinVal, int highPinVal, int highestPinVal ){
-  Serial.print(lowPinVal);
+  /*Serial.print(lowPinVal);
   Serial.print(mediumPinVal);
   Serial.print(highPinVal);
   Serial.print(highestPinVal);  
-  Serial.print(" ");
+  Serial.print(" ");*/
   for (int i=0; i < THRESHOLDCONSECUTIVECOUNT - 1; i++){
     lowPinHistory[i] = lowPinHistory[i + 1];
     mediumPinHistory[i] = mediumPinHistory[i + 1];
